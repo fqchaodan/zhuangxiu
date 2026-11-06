@@ -6,6 +6,7 @@
 
 - 路径：`C:\Exercise\zhuangxiu`
 - 端口：3006，启动 `pnpm dev`
+- 远程：`https://github.com/fqchaodan/zhuangxiu.git`（主分支 `master`）
 - 数据：浏览器 localStorage（key `sys-v{version}-renovation`），数据管理页可导出/导入 JSON
 - 参考数据：`C:\Exercise\装修\三套辅材标准对比分析.xlsx`（彩石 / 鸿鹄普工 / 鸿鹄精工，22 类辅材）
 
@@ -20,6 +21,7 @@
 7. 硬装/软装子页是薄壳，共用 `item-workbench`；不要复制三份表格逻辑。
 8. Element Plus 组件宽度用内联 style，Tailwind `w-*` 会被覆盖。
 9. 部署在子目录 `/renovation/`，`.env.production` 的 `VITE_BASE_URL` 必须是 `/renovation/`；改成 `/` 会导致线上 `/assets/*` 404 白屏。路由为 hash 模式，无需配 router base。
+10. 目录/文件名禁止用 Windows 保留设备名（`con/prn/aux/nul/com1-9/lpt1-9`）。`aux` 目录已改名 `src/views/renovation/hard/auxiliary/`，否则 git 无法索引（`could not open ... for reading`）。
 
 ## 代码风格
 
