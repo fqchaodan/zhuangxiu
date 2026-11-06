@@ -1,0 +1,16 @@
+node_modules
+.DS_Store
+dist
+dist-renovation
+dist-ssr
+*.local
+.cursorrules
+.archive/
+
+# 大体积参考资料不入库
+docs/*.pptx
+
+# Auto-generated files
+src/types/import/auto-imports.d.ts
+src/types/import/components.d.ts
+.auto-import.json
