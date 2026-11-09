@@ -4,6 +4,8 @@
  * 三级结构：主类 → 子类 → 细类，key 由层级短码自动拼接，例如：
  * hard.main.tile.kitchen-wall（硬装 / 主材 / 瓷砖 / 厨房墙砖）
  *
+ * 条目可以挂在任意层级：整套中央空调按整体价记账时，直接挂在 hard.hvac.ac 上，
+ * 不必拆成室内机 / 室外机分别录入。
  * 新增细类只需在下面的种子数据里加一行，页面无需改动。
  */
 import type { SideType } from '@/types/renovation'
@@ -12,7 +14,7 @@ export interface CategoryNode {
   /** 全路径 key */
   key: string
   label: string
-  /** 默认单位（叶子节点有效） */
+  /** 默认单位；中间层级没有单位，按「项」处理且可手动改 */
   unit?: string
   icon?: string
   children?: CategoryNode[]

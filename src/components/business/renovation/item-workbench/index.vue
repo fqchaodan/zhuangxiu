@@ -43,7 +43,10 @@
           />
         </ElSelect>
         <span class="workbench__stat"
-          >共 {{ stat.count }} 条 · ¥ {{ formatMoney(stat.amount) }}</span
+          >共 {{ stat.count }} 条<span v-if="stat.detailCount"
+            >（含 {{ stat.detailCount }} 条明细）</span
+          >
+          · ¥ {{ formatMoney(stat.amount) }}</span
         >
       </div>
 
@@ -70,9 +73,11 @@
           :data="data"
           :loading="loading"
           selectable
+          show-add-child
           :pagination="pagination"
           @view="openDetail"
           @edit="openEdit"
+          @add-child="openAddChild"
           @delete="handleDelete"
           @selection-change="(rows) => (selectedRows = rows)"
           @size-change="handleSizeChange"
@@ -84,12 +89,13 @@
     <ItemFormDialog
       v-model="formVisible"
       :item="editingItem"
+      :parent-item="parentItem"
       :default-category-key="defaultCategoryKey"
       :default-side="side"
       @saved="handleSaved"
     />
 
-    <ItemDetailDrawer v-model="detailVisible" :item="detailItem" />
+    <ItemDetailDrawer v-model="detailVisible" :item="detailItem" @changed="handleSaved" />
   </div>
 </template>
 
@@ -104,7 +110,7 @@
   import { fetchItemPage, queryItems } from '@/api/local/item'
   import { formatMoney, ITEM_STATUS_OPTIONS } from '@/config/renovation-dict'
   import { getCategoryLabel } from '@/config/taxonomy'
-  import { useRenovationStore } from '@/store/modules/renovation'
+  import { isBillableItem, useRenovationStore } from '@/store/modules/renovation'
   import type { ItemStatus, RenovationItem, SideType } from '@/types/renovation'
 
   const props = defineProps<{
@@ -126,6 +132,7 @@
 
   const formVisible = ref(false)
   const editingItem = ref<RenovationItem | null>(null)
+  const parentItem = ref<RenovationItem | null>(null)
   const detailVisible = ref(false)
   const detailItem = ref<RenovationItem | null>(null)
 
@@ -166,13 +173,16 @@
       roomId: roomId.value,
       status: status.value
     })
+    const billable = list.filter(isBillableItem)
     return {
       count: list.length,
-      amount: list.reduce((sum, item) => sum + item.amount, 0)
+      detailCount: list.length - billable.length,
+      amount: billable.reduce((sum, item) => sum + item.amount, 0)
     }
   })
 
-  const defaultCategoryKey = computed(() => (categoryKey.value ? categoryKey.value : props.rootKey))
+  // 只有主动选中了左侧分类节点才预填；否则让用户从级联里自由选任意层级
+  const defaultCategoryKey = computed(() => categoryKey.value)
 
   watch([categoryKey, roomId, status], () => {
     handleSearch()
@@ -200,11 +210,19 @@
 
   function openCreate(): void {
     editingItem.value = null
+    parentItem.value = null
+    formVisible.value = true
+  }
+
+  function openAddChild(row: RenovationItem): void {
+    editingItem.value = null
+    parentItem.value = row
     formVisible.value = true
   }
 
   function openEdit(row: RenovationItem): void {
     editingItem.value = row
+    parentItem.value = null
     formVisible.value = true
   }
 
@@ -218,12 +236,16 @@
   }
 
   async function handleDelete(row: RenovationItem): Promise<void> {
+    const childCount = store.childrenOf(row.id).length
+    const message = childCount
+      ? `确定删除「${row.name}」吗？其下 ${childCount} 条子项明细会一并删除，且同步从汇总中移除。`
+      : `确定删除「${row.name}」吗？删除后会同步从汇总中移除。`
     try {
-      await ElMessageBox.confirm(
-        `确定删除「${row.name}」吗？删除后会同步从汇总中移除。`,
-        '删除确认',
-        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
-      )
+      await ElMessageBox.confirm(message, '删除确认', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      })
     } catch {
       return
     }
@@ -236,11 +258,15 @@
     const count = selectedRows.value.length
     if (!count) return
     try {
-      await ElMessageBox.confirm(`确定删除选中的 ${count} 条记录吗？`, '批量删除', {
-        type: 'warning',
-        confirmButtonText: '删除',
-        cancelButtonText: '取消'
-      })
+      await ElMessageBox.confirm(
+        `确定删除选中的 ${count} 条记录吗？其下的子项明细也会一并删除。`,
+        '批量删除',
+        {
+          type: 'warning',
+          confirmButtonText: '删除',
+          cancelButtonText: '取消'
+        }
+      )
     } catch {
       return
     }

@@ -5,7 +5,9 @@
       <div class="stat-tile">
         <span class="stat-tile__label">合计金额</span>
         <span class="stat-tile__value">¥ {{ formatMoney(summary.amount) }}</span>
-        <span class="stat-tile__sub">{{ summary.count }} 条记录</span>
+        <span class="stat-tile__sub">
+          {{ summary.count }} 条记录<span v-if="detailCount"> · 另有 {{ detailCount }} 条明细</span>
+        </span>
       </div>
       <div class="stat-tile">
         <span class="stat-tile__label">硬装合计</span>
@@ -135,7 +137,7 @@
       />
     </ElCard>
 
-    <ItemDetailDrawer v-model="detailVisible" :item="detailItem" />
+    <ItemDetailDrawer v-model="detailVisible" :item="detailItem" :editable="false" />
   </div>
 </template>
 
@@ -184,8 +186,9 @@
   const detailVisible = ref(false)
   const detailItem = ref<RenovationItem | null>(null)
 
+  /** 汇总按「计入预算的条目」统计；子项明细在条目详情里查看，避免整体价被双算 */
   const filteredItems = computed(() =>
-    store.items.filter((item) => {
+    store.billableItems.filter((item) => {
       if (side.value !== 'all' && item.side !== side.value) return false
       if (roomId.value && item.roomId !== roomId.value) return false
       if (status.value && item.status !== status.value) return false
@@ -196,6 +199,8 @@
       return true
     })
   )
+
+  const detailCount = computed(() => store.items.length - store.billableItems.length)
 
   const summary = computed(() => {
     const list = filteredItems.value
@@ -272,12 +277,16 @@
   }
 
   async function handleDelete(row: RenovationItem): Promise<void> {
+    const childCount = store.childrenOf(row.id).length
+    const message = childCount
+      ? `确定删除「${row.name}」吗？其下 ${childCount} 条子项明细会一并删除，且会直接删除源数据。`
+      : `确定删除「${row.name}」吗？该操作会直接删除源数据。`
     try {
-      await ElMessageBox.confirm(
-        `确定删除「${row.name}」吗？该操作会直接删除源数据。`,
-        '删除确认',
-        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
-      )
+      await ElMessageBox.confirm(message, '删除确认', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      })
     } catch {
       return
     }
@@ -289,11 +298,15 @@
     const count = selectedRows.value.length
     if (!count) return
     try {
-      await ElMessageBox.confirm(`确定删除选中的 ${count} 条记录吗？`, '批量删除', {
-        type: 'warning',
-        confirmButtonText: '删除',
-        cancelButtonText: '取消'
-      })
+      await ElMessageBox.confirm(
+        `确定删除选中的 ${count} 条记录吗？其下的子项明细也会一并删除。`,
+        '批量删除',
+        {
+          type: 'warning',
+          confirmButtonText: '删除',
+          cancelButtonText: '取消'
+        }
+      )
     } catch {
       return
     }

@@ -6,6 +6,9 @@
     :columns="columns"
     :pagination="pagination"
     :height="height"
+    row-key="id"
+    :tree-props="{ children: 'children' }"
+    :default-expand-all="true"
     empty-text="还没有条目，先录一条试试"
     @selection-change="handleSelectionChange"
     @pagination:size-change="(size: number) => emit('size-change', size)"
@@ -20,7 +23,21 @@
 
     <template #name="{ row }">
       <div class="cell-name">
-        <span class="cell-name__title">{{ row.name || '-' }}</span>
+        <div class="cell-name__title">
+          <span>{{ row.name || '-' }}</span>
+          <ElTag v-if="row.parentId" size="small" effect="plain" class="cell-name__tag">
+            明细
+          </ElTag>
+          <ElTag
+            v-else-if="row.children?.length"
+            size="small"
+            type="info"
+            effect="plain"
+            class="cell-name__tag"
+          >
+            {{ row.children.length }} 项明细
+          </ElTag>
+        </div>
         <span v-if="row.brand || row.model" class="cell-name__sub">
           {{ [row.brand, row.model].filter(Boolean).join(' · ') }}
         </span>
@@ -37,7 +54,10 @@
     </template>
 
     <template #amount="{ row }">
-      <span class="cell-amount">{{ formatMoney(row.amount) }}</span>
+      <div class="cell-amount-wrap">
+        <span class="cell-amount">{{ formatMoney(row.amount) }}</span>
+        <span v-if="row.parentId && !row.countInTotal" class="cell-amount__tip">不计价</span>
+      </div>
     </template>
 
     <template #status="{ row }">
@@ -64,6 +84,11 @@
     <template #action="{ row }">
       <div class="table-actions">
         <ArtButtonTable type="view" @click="emit('view', row)" />
+        <ArtButtonTable
+          v-if="showAddChild && !readonly && !row.parentId"
+          type="add"
+          @click="emit('add-child', row)"
+        />
         <ArtButtonTable v-if="showEdit && !readonly" type="edit" @click="emit('edit', row)" />
         <ArtButtonTable v-if="showDelete && !readonly" type="delete" @click="emit('delete', row)" />
       </div>
@@ -83,17 +108,18 @@
     ITEM_STATUS_OPTIONS,
     PAY_STATUS_OPTIONS
   } from '@/config/renovation-dict'
-  import type { RenovationItem } from '@/types/renovation'
+  import type { ItemRow, RenovationItem } from '@/types/renovation'
   import type { ColumnOption } from '@/types'
 
   const props = withDefaults(
     defineProps<{
-      data: RenovationItem[]
+      data: ItemRow[]
       loading?: boolean
       readonly?: boolean
       selectable?: boolean
       showEdit?: boolean
       showDelete?: boolean
+      showAddChild?: boolean
       height?: string
       pagination?: { current: number; size: number; total: number }
     }>(),
@@ -103,6 +129,7 @@
       selectable: false,
       showEdit: true,
       showDelete: true,
+      showAddChild: false,
       height: undefined,
       pagination: undefined
     }
@@ -112,6 +139,7 @@
     (e: 'view', row: RenovationItem): void
     (e: 'edit', row: RenovationItem): void
     (e: 'delete', row: RenovationItem): void
+    (e: 'add-child', row: ItemRow): void
     (e: 'selection-change', rows: RenovationItem[]): void
     (e: 'size-change', size: number): void
     (e: 'current-change', page: number): void
@@ -128,7 +156,10 @@
   /** 按钮数量随只读 / 显隐变化，列宽跟着调整，避免固定宽度把按钮裁掉 */
   const actionWidth = computed(() => {
     const count =
-      1 + Number(props.showEdit && !props.readonly) + Number(props.showDelete && !props.readonly)
+      1 +
+      Number(props.showAddChild && !props.readonly) +
+      Number(props.showEdit && !props.readonly) +
+      Number(props.showDelete && !props.readonly)
     return count * ACTION_BUTTON_WIDTH + (count - 1) * ACTION_BUTTON_GAP + ACTION_CELL_PADDING
   })
 
@@ -154,7 +185,7 @@
       list.push({ type: 'selection', width: 44, fixed: 'left' })
     }
     list.push(
-      { prop: 'categoryKey', label: '分类', width: 140, useSlot: true },
+      { prop: 'categoryKey', label: '分类', minWidth: 150, useSlot: true },
       { prop: 'name', label: '名称 / 品牌', minWidth: 180, useSlot: true },
       { prop: 'roomName', label: '房间', width: 80, useSlot: true },
       { prop: 'quantity', label: '数量', width: 90, useSlot: true, align: 'right' },
@@ -179,6 +210,34 @@
 </script>
 
 <style scoped lang="scss">
+  // 单元格内容统一垂直居中；同时把树形缩进占位与展开图标变成 flex item，
+  // 不再被块级内容挤到「中央空调」上方单独占一行
+  :deep(.el-table__body-wrapper .el-table__cell .cell) {
+    display: flex;
+    align-items: center;
+  }
+
+  // 改成 flex 后右对齐列需要显式右对齐，否则数字会跑到左侧
+  :deep(.el-table__body-wrapper .el-table__cell.is-right .cell) {
+    justify-content: flex-end;
+  }
+
+  // 展开图标与分类主标题同一水平线，而不是落在两行文字中间
+  :deep(.el-table__body-wrapper .el-table__expand-icon) {
+    align-self: flex-start;
+    margin-top: 3px;
+  }
+
+  // 树形缩进占位不许被压缩，保证父子层级一眼可辨
+  :deep(.el-table__body-wrapper .el-table__placeholder) {
+    flex: none;
+  }
+
+  .cell-category,
+  .cell-name {
+    min-width: 0;
+  }
+
   .cell-category {
     display: flex;
     flex-direction: column;
@@ -201,8 +260,25 @@
     line-height: 1.35;
 
     &__title {
+      display: flex;
+      gap: 6px;
+      align-items: center;
       font-size: 13px;
       color: var(--art-gray-900);
+
+      > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    &__tag {
+      flex: none;
+      height: 18px;
+      padding: 0 5px;
+      font-size: 11px;
+      line-height: 16px;
     }
 
     &__sub {
@@ -217,6 +293,18 @@
   .cell-amount {
     font-weight: 500;
     color: var(--art-gray-900);
+  }
+
+  .cell-amount-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.35;
+  }
+
+  .cell-amount__tip {
+    font-size: 11px;
+    color: var(--art-gray-500);
   }
 
   .cell-pay {

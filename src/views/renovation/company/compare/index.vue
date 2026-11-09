@@ -174,14 +174,15 @@
         <ElTable :data="companies" height="100%" border>
           <ElTableColumn prop="name" label="公司" min-width="160" fixed />
           <ElTableColumn prop="type" label="模式" width="90" />
-          <ElTableColumn label="报价总额" width="140" align="right">
+          <ElTableColumn label="报价总额" width="172" align="right">
             <template #default="{ row }">
               <div class="quote-total">
-                <span>{{
+                <span class="quote-total__amount">{{
                   row.quoteTotal > 0 ? `¥ ${formatMoney(row.quoteTotal)}` : '未录入'
                 }}</span>
                 <ElTag
                   v-if="row.quoteTotal > 0 && row.quoteTotal === minQuote"
+                  class="quote-total__tag"
                   size="small"
                   type="success"
                 >
@@ -500,9 +501,20 @@
 
   .quote-total {
     display: flex;
+    flex-wrap: nowrap;
     gap: 6px;
     align-items: center;
     justify-content: flex-end;
+
+    /* 金额与标签都不许折行，否则窄列里会被挤成三行 */
+    &__amount {
+      white-space: nowrap;
+    }
+
+    &__tag {
+      flex: none;
+      white-space: nowrap;
+    }
   }
 
   @media (width <= 900px) {

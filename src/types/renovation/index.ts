@@ -3,7 +3,8 @@
  *
  * 约定：
  * - 金额单位统一为「元」，保留两位小数
- * - 分类一律使用三级 key，如 hard.main.tile.kitchen-wall
+ * - 分类使用树路径 key，可停在任意层级，如 hard.hvac.ac / hard.main.tile.kitchen-wall
+ * - 条目支持一层父子关系：父条目记整体价，子条目记组成明细
  * - 所有实体 id 使用字符串，便于导入导出与本地生成
  */
 
@@ -43,8 +44,12 @@ export interface Vendor {
 export interface RenovationItem {
   id: string
   side: SideType
-  /** 三级分类 key */
+  /** 分类 key，可停在分类树的任意层级 */
   categoryKey: string
+  /** 父条目 id；为空表示顶层条目（子条目只允许一层） */
+  parentId?: string
+  /** 子条目金额是否单独计入预算；默认 false，避免与父条目整体价重复计算 */
+  countInTotal?: boolean
   name: string
   brand: string
   model: string
@@ -180,6 +185,11 @@ export interface PageResult<T> {
   total: number
   current: number
   size: number
+}
+
+/** 表格树形行：顶层条目携带一层子条目 */
+export interface ItemRow extends RenovationItem {
+  children?: ItemRow[]
 }
 
 /** 条目查询参数 */

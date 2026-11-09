@@ -35,6 +35,16 @@ export function createId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${idSeed}`
 }
 
+/**
+ * 金额是否计入预算
+ *
+ * 顶层条目始终计入；子条目默认只作组成明细（避免与父条目整体价双算），
+ * 只有用户显式勾选「计入总预算」时才单独计价（例如后期额外增项）。
+ */
+export function isBillableItem(item: RenovationItem): boolean {
+  return !item.parentId || item.countInTotal === true
+}
+
 export const useRenovationStore = defineStore(
   'renovationStore',
   () => {
@@ -84,12 +94,20 @@ export const useRenovationStore = defineStore(
     }
 
     function removeItem(id: string): void {
-      items.value = items.value.filter((item) => item.id !== id)
+      // 删除父条目时一并删掉它的子条目，避免留下孤儿明细
+      items.value = items.value.filter((item) => item.id !== id && item.parentId !== id)
     }
 
     function removeItems(ids: string[]): void {
       const set = new Set(ids)
-      items.value = items.value.filter((item) => !set.has(item.id))
+      items.value = items.value.filter(
+        (item) => !set.has(item.id) && !(item.parentId && set.has(item.parentId))
+      )
+    }
+
+    /** 取某个父条目下的全部子条目 */
+    function childrenOf(parentId: string): RenovationItem[] {
+      return items.value.filter((item) => item.parentId === parentId)
     }
 
     /* ---------------- 房间 ---------------- */
@@ -205,12 +223,23 @@ export const useRenovationStore = defineStore(
     const hardItems = computed(() => items.value.filter((item) => item.side === 'hard'))
     const softItems = computed(() => items.value.filter((item) => item.side === 'soft'))
 
-    const hardTotal = computed(() => hardItems.value.reduce((sum, item) => sum + item.amount, 0))
-    const softTotal = computed(() => softItems.value.reduce((sum, item) => sum + item.amount, 0))
+    /** 参与金额统计的条目：顶层条目 + 显式勾选计价的子条目 */
+    const billableItems = computed(() => items.value.filter(isBillableItem))
+
+    const hardTotal = computed(() =>
+      billableItems.value
+        .filter((item) => item.side === 'hard')
+        .reduce((sum, item) => sum + item.amount, 0)
+    )
+    const softTotal = computed(() =>
+      billableItems.value
+        .filter((item) => item.side === 'soft')
+        .reduce((sum, item) => sum + item.amount, 0)
+    )
     const grandTotal = computed(() => hardTotal.value + softTotal.value)
 
     const paidTotal = computed(() =>
-      items.value.reduce((sum, item) => sum + (item.paidAmount || 0), 0)
+      billableItems.value.reduce((sum, item) => sum + (item.paidAmount || 0), 0)
     )
     const unpaidTotal = computed(() => Math.max(grandTotal.value - paidTotal.value, 0))
 
@@ -230,14 +259,14 @@ export const useRenovationStore = defineStore(
 
     /** 按分类前缀汇总金额 */
     function sumByCategory(prefix: string): number {
-      return items.value
+      return billableItems.value
         .filter((item) => item.categoryKey === prefix || item.categoryKey.startsWith(`${prefix}.`))
         .reduce((sum, item) => sum + item.amount, 0)
     }
 
     /** 按房间汇总金额 */
     function sumByRoom(roomId: string): number {
-      return items.value
+      return billableItems.value
         .filter((item) => item.roomId === roomId)
         .reduce((sum, item) => sum + item.amount, 0)
     }
@@ -309,6 +338,7 @@ export const useRenovationStore = defineStore(
       seeded,
       hardItems,
       softItems,
+      billableItems,
       hardTotal,
       softTotal,
       grandTotal,
@@ -321,6 +351,7 @@ export const useRenovationStore = defineStore(
       upsertItem,
       removeItem,
       removeItems,
+      childrenOf,
       upsertRoom,
       removeRoom,
       upsertVendor,

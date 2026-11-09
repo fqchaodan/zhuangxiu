@@ -116,12 +116,12 @@
       width="420px"
       append-to-body
     >
-      <ElForm :model="roomForm" label-width="80px">
+      <ElForm :model="roomForm" label-width="96px">
         <ElFormItem label="房间名称" required>
           <ElInput v-model="roomForm.name" placeholder="如：主卧" maxlength="20" />
         </ElFormItem>
         <ElFormItem label="面积（㎡）">
-          <ElInputNumber v-model="roomForm.area" :min="0" :precision="1" class="w-full" />
+          <ElInputNumber v-model="roomForm.area" :min="0" :precision="1" style="width: 100%" />
         </ElFormItem>
         <ElFormItem label="备注">
           <ElInput v-model="roomForm.note" maxlength="60" />

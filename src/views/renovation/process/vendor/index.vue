@@ -68,15 +68,16 @@
     <ElDialog
       v-model="dialogVisible"
       :title="form.id ? '编辑联系人' : '新增联系人'"
-      width="520px"
+      width="560px"
+      class="vendor-dialog"
       append-to-body
     >
-      <ElForm :model="form" label-width="80px">
+      <ElForm :model="form" label-width="100px">
         <ElFormItem label="姓名" required>
           <ElInput v-model="form.name" placeholder="如：王工" maxlength="20" />
         </ElFormItem>
         <ElFormItem label="角色">
-          <ElSelect v-model="form.role" class="w-full" filterable allow-create>
+          <ElSelect v-model="form.role" style="width: 100%" filterable allow-create>
             <ElOption v-for="item in VENDOR_ROLE_OPTIONS" :key="item" :label="item" :value="item" />
           </ElSelect>
         </ElFormItem>
@@ -318,6 +319,16 @@
   @media (width <= 900px) {
     .vendor-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>
+
+<!-- 弹窗 append-to-body，scoped 样式命中不了，用唯一类名约束全局 -->
+<style lang="scss">
+  /* 长标签（如「公司 / 店铺」）不再折行，避免和下一行标签挤在一起 */
+  .vendor-dialog.el-dialog {
+    .el-form-item__label {
+      white-space: nowrap;
     }
   }
 </style>
